@@ -5,7 +5,7 @@ This part of the repository stores some machine learning projects. Here are some
   
 Implement traditional differential expressed gene selection methods and the innovative method of PEAP. Implement LASSO to do dimension reduction and GBM to conduct Multi-class classification.
 ## 2. Modified KNN Collaborative Filtering
-**Key Techniques:** *KNN, Collaborative Filtering, Recommendation, Similarity Measure, Python*  
+**Key Techniques:** *KNN, Collaborative Filtering, Recommendation, Python*  
   
 Modify source code of KNN Collaborative Filtering package to do course-grained recommendation preprocessing.
 
