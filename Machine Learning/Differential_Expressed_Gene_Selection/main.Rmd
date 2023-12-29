@@ -32,17 +32,17 @@ set.seed(1234)
 subtype_limit = 100
 
 # TCGA 
-load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/TCGA_PEAP03_output.RData")
+load("TCGA_PEAP03_output.RData")
 pheno_sample_tcga = pheno_sample
 
 # GSE 
-load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/GSE5327_PEAP03_output.RData")
+load("GSE5327_PEAP03_output.RData")
 pheno_sample_GSE5327 = pheno_sample
-load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/GSE2034_PEAP03_output.RData")
+load("GSE2034_PEAP03_output.RData")
 pheno_sample_GSE2034 = pheno_sample
 
 # fold change
-load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/Top1500_genes_eachpheno.Rdata")
+load("Top1500_genes_eachpheno.Rdata")
 
 rm(pheno_sample)
 # phenotype
