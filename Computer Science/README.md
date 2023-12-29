@@ -35,18 +35,18 @@ The user will use 4 arrow keys to control the snake’s movement, in order to co
 Given an array of n integers and an integer t, find the indices of the two elements such that they
 add up to t.
 ## 7. Inversion Number
-**Key Techniques:** *merge sort, Java*  
+**Key Techniques:** *Merge Sort, Java*  
 Count the number of inversions of an array
 ## 8. Symmetric Binary Tree
-**Key Techniques:** *Recursion, BFS*    
+**Key Techniques:** *Recursion, BFS*      
 Finds the biggest symmetric subtree in a binary tree.
 ## 9. Wandering
-**Key Techniques:** *Dijkstra*
+**Key Techniques:** *Dijkstra*  
 Finds the second shortest path from node 1 to node n in a bidirectional graph.  
 
 The program first uses traditional Dijkstra to find the shortest distance to node 1 for every node and stores them in an array. Then, the algorithm uses basically the same way of Dijkstra to iterate over the graph but when update the second shortest distance based on the first Dijkstra's results
 ## 10. Pandemic
-**Key Techniques:** *Prim Algorithm*  
+**Key Techniques:** *Prim Algorithm*    
 Build a minimum spinning tree to cover all the nodes in a two-dimensional space.
 
 
