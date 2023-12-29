@@ -1,4 +1,4 @@
-# Excercises
+# Computer Science Ability
 This repository stores some coding exercises (currently all from my school assignments).
 ## 1. Polynomial Derivative
 Allows the user to enter a polynomial in standard form as a string and derive its derivative.
