@@ -3,7 +3,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Scanner;
 
-public class A4_P1_120090792 {
+public class SBT {
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
         // read n
