@@ -3,7 +3,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Scanner;
 
-public class SBT {
+public class symmetric_binary_tree {
     public static void main(String args[]) {
         Scanner in = new Scanner(System.in);
         // read n
