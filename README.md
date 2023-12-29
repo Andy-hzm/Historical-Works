@@ -1,4 +1,4 @@
 # Historical Works
-This repository is a self-introduction through the form of codes.
+This repository serves as a self-introduction of coding ability.
 
-Here stores the codes which are **beyond simple data analytics**, coming from school as well as research projects.
+While data science is my undergraduate focus, the aim of this repository is to **showcase my coding proficiency** rather than delve into data science theories and modeling processes. The codes I've chosen to upload demonstrate my logical thinking, coding styles, as well as my adaptability to new programming challenges.
