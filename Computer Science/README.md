@@ -36,26 +36,26 @@ A special snake game.
 The user will use 4 arrow keys to control the snake’s movement, in order to consume all the food items generated randomly on the board (represented by numbers from 1 to 9) and avoid head-on collision with the monster (represented by a purple square). When the snake eats all the “food” on the board and is not caught by the monster, the user wins the game. Oppositely, when the monster catches the snake, the user loses the game. Also, as soon as the user clicks anywhere on the screen to start the game, the status area on the board will show the current gaming time and the snake’smotion, including “Up”, “Right”, “Down”, “Left”, and “Paused” (the user can use a space bar to pause or un-pause the snake’s movement). The area also counts the contact time of the monster and the snake’s body.
 ## 6. Two Sum
 **Key Techniques:** *Quick Sort, Binary Search, Java*  
-
+  
 Given an array of n integers and an integer t, find the indices of the two elements such that they
 add up to t.
 ## 7. Inversion Number
 **Key Techniques:** *Merge Sort, Java*  
-
+  
 Count the number of inversions of an array
 ## 8. Symmetric Binary Tree
 **Key Techniques:** *Recursion, BFS*      
-
+  
 Finds the biggest symmetric subtree in a binary tree.
 ## 9. Wandering
 **Key Techniques:** *Dijkstra*  
-
+  
 Finds the second shortest path from node 1 to node n in a bidirectional graph.  
 
 The program first uses traditional Dijkstra to find the shortest distance to node 1 for every node and stores them in an array. Then, the algorithm uses basically the same way of Dijkstra to iterate over the graph but when update the second shortest distance based on the first Dijkstra's results
 ## 10. Pandemic
 **Key Techniques:** *Prim Algorithm*    
-
+  
 Build a minimum spinning tree to cover all the nodes in a two-dimensional space.
 
 
