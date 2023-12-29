@@ -2,14 +2,17 @@
 This part of the repository stores some coding exercises, currently all from my school assignments. Here are the explanations of these codes. 
 ## 1. Polynomial Derivative
 **Key Techniques:** *OOP, Python*  
+
 Allows the user to enter a polynomial in standard form as a string and derive its derivative.
 ## 2. Ecosystem Simulator
 **Key Techniques:** *OOP, Python*  
+
 Imitate an ecosystem of fish and bear.
 
 In each time step, based on a random process, each animal either attempts to move into an adjacent list location or stay where it is. If two animals of the same type are about to collide in the same cell, then they stay where they are, but they create a new instance of that type of animal, which is placed in a random empty (i.e., previously None) location in the list. If a bear and a fish collide, however, then the fish dies (i.e., it disappears).
 ## 3. Hanoi Tower Solution
 **Key Techniques:** *OOP, Stack, Python*  
+
 Simulates the tower of Hanoi, a mathematical game or puzzle.
 
 There are three rods and a number of disks of different sizes which can slide onto any rod. The puzzle starts with the disks in a neat stack in ascending order of size on one rod, the smallest at the top, thus making a conical shape. The objective of the puzzle is to move the entire stack to
@@ -22,6 +25,7 @@ another rod, obeying the following simple rules:
 Assume that initially all the disks are placed on rod A. This program asked the user for the preferred initial number of disks. It prints out the needed steps to shift all the disks to rod C via rod B.
 ## 4. Klotski Sliding Puzzle
 **Key Techniques:** *Function Definition, Python*   
+
 An interactive game.
 
 This game generates a disordered number table in dimensions up to 10x10. The minimum dimension is 3x3. The gaming board has an empty space where an adjacent number can be slid to. The objective of this game is to rearrange the numbers into a sequential order (left to right, top to bottom) by repeatedly making sliding moves (left, right, up or down).
