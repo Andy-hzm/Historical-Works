@@ -58,7 +58,9 @@ The program first uses traditional Dijkstra to find the shortest distance to nod
   
 Build a minimum spinning tree to cover all the nodes in a two-dimensional space.
 ## Others
-Besides the concluded codes, I also took part in a java project implementing a simple database with GitHub repository link: https://github.com/CSC3170-2022Fall/project-diana-candy-superteam. 
+Besides the concluded codes, I also took part in a java project implementing a RDBMS. 
+
+The GitHub repository link is: https://github.com/CSC3170-2022Fall/project-diana-candy-superteam. 
 
 I am responsible for the Java implementation of the command line interpreter (an original database system language for the project, formatted after MySQL), which involves interpretations for loading, storing data and inserting and displaying data statements as well as more complex statements for extracting data (e.g., SELECT-related statements)
 
