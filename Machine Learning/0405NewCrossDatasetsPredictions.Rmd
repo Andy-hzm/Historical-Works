@@ -1,0 +1,573 @@
+---
+title: "05New"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Loading libraries and data
+```{r cars}
+rm(list=ls())
+library(ggplot2)
+library(xtable)
+library(fgsea)
+library(ggpubr)
+library(gbm)
+library(caret)
+library(limma)
+library(edgeR)
+library(glmnet)
+library(modelr)
+library(purrr)
+library(caret)
+library(dplyr)
+library(corrplot)
+library(nnet)
+library(DESeq2)
+set.seed(1234)
+
+subtype_limit = 100
+
+# TCGA 
+load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/TCGA_PEAP03_output.RData")
+pheno_sample_tcga = pheno_sample
+
+# GSE 
+load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/GSE5327_PEAP03_output.RData")
+pheno_sample_GSE5327 = pheno_sample
+load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/04_Input/GSE2034_PEAP03_output.RData")
+pheno_sample_GSE2034 = pheno_sample
+
+# fold change
+load("C:/Users/HuangZimeng/Desktop/Research/workingEnv/Top1500_genes_eachpheno.Rdata")
+
+rm(pheno_sample)
+# phenotype
+name_pheno <- c("Basal", "Her2","LumA", "LumB", "Normal")
+```
+
+# Self-defined functions
+
+```{r}
+lassoPreprocessBinary = function(df, target){
+  # Input a data frame with a phenotype column (including all 5 phenotypes)
+  # Transfer it into "binary" phenotype according to "target"
+  # Output x, y suitable for glmnet
+  df_copy = df
+  df_copy$phenoNumeric = as.numeric(df_copy$phenotype==target)
+  x = as.matrix(df_copy[,-c(which(colnames(df_copy)=="phenotype" | colnames(df_copy)=="phenoNumeric"))])
+  y = unlist(df_copy[,"phenoNumeric"])
+  return(list(x,y))
+}
+
+matching = function(x, matchMode){
+  # If matchMode is 0: return numerical value representing phenotype
+  # If matchMode is 1: return phenotype according to numerical value
+  phenoV = c("Basal", "Her2","LumA", "LumB", "Normal")
+  ans = ifelse(matchMode==0,
+               sum(which(phenoV==x)), phenoV[x])
+  return(ans)
+} 
+
+
+lassoPreprocessMulti = function(df){
+  # Input a data frame with a phenotype column (including all 5 phenotypes)
+  # Output x, y suitable for glmnet
+  df_copy = df
+  df_copy$phenoNumeric = lapply(df_copy$phenotype,FUN = matching, matchMode=0)
+  x = as.matrix(df_copy[,-c(which(colnames(df_copy)=="phenotype" | colnames(df_copy)=="phenoNumeric"))])
+  y = unlist(df_copy[,"phenoNumeric"])
+  return(list(x,y))
+}
+```
+
+# DEG limma
+## Feature Selection for DEG limma
+```{r}
+# Normalization
+DGE_obj <- DGEList(counts = 2^GeneExp_BRCA - 1, group = pheno_sample_tcga)
+keep.exprs <- filterByExpr(DGE_obj)
+DGE_obj <- DGE_obj[keep.exprs,, keep.lib.sizes=FALSE]
+DGE_obj <- calcNormFactors(DGE_obj)
+logCPM <- cpm(DGE_obj, log=TRUE, prior.count=3)
+
+DEG_df_list = list()
+limmaG_list = list()
+selecG_limma_list = list()
+top_gene_table_list = list()
+
+# Main: one vs rest
+for(i in 1:5){ 
+  pheno = name_pheno[i]
+  print(pheno)
+  # limma
+  pheno_sample_other <- pheno_sample_tcga
+  for(j in 1:length(pheno_sample_tcga)){
+    if(pheno!=pheno_sample_other[j]){
+      pheno_sample_other[j] <- "other"
+    }
+  }
+  design <- model.matrix(~pheno_sample_other) 
+  colnames(design) <- gsub("pheno_sample_other", "", colnames(design))
+  fit <- lmFit(logCPM, design) 
+  fit <- eBayes(fit, trend=TRUE) 
+  top_gene_table <- topTable(fit, coef=2,
+                             number = subtype_limit,
+                             adjust.method = "BH",p.value = 0.005)
+  top_gene_table_list = append(top_gene_table_list, list(top_gene_table))
+  top_genes <- rownames(top_gene_table)
+  N <- ncol(logCPM)
+  P <- length(top_genes)
+  DEG_df_eachPheno <- matrix(NA, nrow = N, ncol = P)
+  gene_list <-rownames(logCPM)
+  
+  for(p in 1:P){
+    g <- which(gene_list == top_genes[p])
+    DEG_df_eachPheno[,p] <- logCPM[g,]
+  }
+  DEG_df_eachPheno <- as.data.frame(DEG_df_eachPheno)
+  rownames(DEG_df_eachPheno) <- colnames(logCPM)
+  colnames(DEG_df_eachPheno) <- top_genes
+  DEG_df_eachPheno$phenotype = pheno_sample_tcga
+  DEG_df_list = append(DEG_df_list, list(DEG_df_eachPheno))
+  limmaGene = colnames(DEG_df_eachPheno)[-length(colnames(DEG_df_eachPheno))]
+  limmaG_list = append(limmaG_list, list(limmaGene))
+  
+  # lasso
+  DEGxy = lassoPreprocessBinary(DEG_df_eachPheno, name_pheno[i])
+  cvLassoDEG = cv.glmnet(DEGxy[[1]], DEGxy[[2]],
+                         alpha = 1, nfolds = 10)
+  plot(cvLassoDEG)
+  DEG_lambda = cvLassoDEG$lambda.min
+  print(DEG_lambda)
+  finalLassoDEG = glmnet(DEGxy[[1]], DEGxy[[2]],
+                       alpha = 1, lambda=DEG_lambda) 
+  result = as.matrix(coef(finalLassoDEG))
+  selecG = names(result[result[,1]!=0,])[-1]
+  selecG_limma_list = append(selecG_limma_list, list(selecG))
+}
+limmaG = unique(unlist(limmaG_list))
+selecG = unique(unlist(selecG_limma_list))
+DEG_lasso = as.data.frame(t(logCPM)[,selecG])
+DEG_lasso$phenotype = pheno_sample_tcga
+```
+
+## GBM
+```{r}
+gbm_mod = gbm(phenotype ~.,
+              data = DEG_lasso,
+              distribution = "multinomial",
+              cv.folds = 10,
+              shrinkage = .01,
+              n.trees = 1000)
+tcga_pred = gbm_mod$cv.fitted
+gbm.perf(gbm_mod)
+pred_pheno_tcga_gene = unlist(lapply(apply(gbm_mod$fit, 1, which.max),
+                                matching, matchMode = 1))
+```
+
+
+## GSE2034
+```{r}
+# Normalization
+DGE_obj_2034 <- DGEList(counts = 2^GeneExp_BRCA_GSE2034 - 1,
+                   group = pheno_sample_GSE2034)
+keep.exprs.2034 <- filterByExpr(DGE_obj_2034)
+DGE_obj_2034 <- calcNormFactors(DGE_obj_2034)
+logCPM_2034 <- cpm(DGE_obj_2034, log=TRUE, prior.count=3)
+test_GSE2034 = as.data.frame(t(logCPM_2034)[,selecG])
+GSE2034_pre <- predict.gbm(gbm_mod, test_GSE2034)
+pred_pheno_GSE2034 <- as.list(apply(GSE2034_pre, 1, which.max))
+pred_pheno_GSE2034 = unlist(lapply(pred_pheno_GSE2034, matching, matchMode = 1))
+real_pheno_GSE2034 <- pheno_sample_GSE2034
+pheno_GSE2034_gene = pred_pheno_GSE2034
+confusionMatrix(factor(pred_pheno_GSE2034), factor(real_pheno_GSE2034))
+```
+
+## GSE5327
+```{r}
+DGE_obj_5327 <- DGEList(counts = 2^GeneExp_BRCA_GSE5327 - 1,
+                   group = pheno_sample_GSE5327)
+keep.exprs.5327 <- filterByExpr(DGE_obj_5327)
+DGE_obj_5327 <- calcNormFactors(DGE_obj_5327)
+logCPM_5327 <- cpm(DGE_obj_5327, log=TRUE, prior.count=3)
+test_GSE5327 = as.data.frame(t(logCPM_5327)[,selecG])
+GSE5327_pre <- predict.gbm(gbm_mod, test_GSE5327)
+pred_pheno_GSE5327 <- as.list(apply(GSE5327_pre, 1, which.max))
+pred_pheno_GSE5327 = unlist(lapply(pred_pheno_GSE5327, matching, matchMode = 1))
+real_pheno_GSE5327 <- pheno_sample_GSE5327
+confusionMatrix(factor(pred_pheno_GSE5327), factor(real_pheno_GSE5327))
+```
+
+# DEG edgeR
+## Feature Selection for DEG edgeR
+```{r}
+# Normalization
+DGE_obj <- DGEList(counts = 2^GeneExp_BRCA - 1, group = pheno_sample_tcga)
+keep.exprs <- filterByExpr(DGE_obj)
+DGE_obj <- DGE_obj[keep.exprs,, keep.lib.sizes=FALSE]
+DGE_obj <- calcNormFactors(DGE_obj)
+DGE_obj$group <- pheno_sample_tcga
+
+# calculate preparations
+design <- model.matrix(~pheno_sample_tcga)
+colnames(design)=levels(as.factor(pheno_sample_tcga))
+DGE_obj <- estimateDisp(DGE_obj, design)
+logCPM <- cpm(DGE_obj, log=TRUE, prior.count=3)
+N <- ncol(logCPM)
+fit <- glmQLFit(DGE_obj, design)
+
+DEG_df_list = list()
+edgeRG_list = list()
+selecG_edgeR_list = list()
+top_gene_table_list = list()
+# extract top genes and do lasso
+for (i in 1:5) {
+  contrast_vec = c(0,0,0,0,0)
+  contrast_vec[i]=1
+  result <- glmQLFTest(fit, contrast = contrast_vec)
+  # output target gene
+  top_gene_table <- topTags(result, n = subtype_limit, p.value = 0.005,adjust.method = "BH")
+  top_gene_table_list = append(top_gene_table_list, list(top_gene_table))
+  top_genes=rownames(top_gene_table)
+  
+  P <- length(top_genes)
+  
+  DEG_df_eachPheno <- matrix(NA, nrow = N, ncol = P)
+  gene_list <-rownames(logCPM)
+  
+  for(p in 1:P){
+    g <- which(gene_list == top_genes[p])
+    DEG_df_eachPheno[,p] <- logCPM[g,]
+  }
+  DEG_df_eachPheno <- as.data.frame(DEG_df_eachPheno)
+  rownames(DEG_df_eachPheno) <- colnames(logCPM)
+  colnames(DEG_df_eachPheno) <- top_genes
+  DEG_df_eachPheno$phenotype = pheno_sample_tcga
+  DEG_df_list = append(DEG_df_list, list(DEG_df_eachPheno))
+  edgeRGene = colnames(DEG_df_eachPheno)[-length(colnames(DEG_df_eachPheno))]
+  edgeRG_list = append(edgeRG_list, list(edgeRGene))
+  
+  # lasso
+  DEGxy = lassoPreprocessBinary(DEG_df_eachPheno, name_pheno[i])
+  cvLassoDEG = cv.glmnet(DEGxy[[1]], DEGxy[[2]],
+                         alpha = 1, nfolds = 10)
+  plot(cvLassoDEG)
+  DEG_lambda = cvLassoDEG$lambda.min
+  print(DEG_lambda)
+  finalLassoDEG = glmnet(DEGxy[[1]], DEGxy[[2]],
+                         alpha = 1, lambda=DEG_lambda) 
+  result = as.matrix(coef(finalLassoDEG))
+  selecG = names(result[result[,1]!=0,])[-1]
+  selecG_edgeR_list = append(selecG_edgeR_list, list(selecG))
+}
+edgeRG = unique(unlist(edgeRG_list))
+selecG = unique(unlist(selecG_edgeR_list))
+DEG_lasso = as.data.frame(t(logCPM)[,selecG])
+DEG_lasso$phenotype = pheno_sample_tcga
+```
+
+## GBM
+```{r}
+gbm_mod = gbm(phenotype ~.,
+              data = DEG_lasso,
+              distribution = "multinomial",
+              cv.folds = 10,
+              shrinkage = .01,
+              n.trees = 1000)
+tcga_pred = gbm_mod$cv.fitted
+gbm.perf(gbm_mod)
+pred_pheno_tcga_gene = unlist(lapply(apply(gbm_mod$fit, 1, which.max),
+                                     matching, matchMode = 1))
+```
+
+
+## GSE2034
+```{r}
+DGE_obj_2034 <- DGEList(counts = 2^GeneExp_BRCA_GSE2034 - 1,
+                        group = pheno_sample_GSE2034)
+keep.exprs.2034 <- filterByExpr(DGE_obj_2034)
+DGE_obj_2034 <- calcNormFactors(DGE_obj_2034)
+logCPM_2034 <- cpm(DGE_obj_2034, log=TRUE, prior.count=3)
+test_GSE2034 = as.data.frame(t(logCPM_2034)[,selecG])
+GSE2034_pre <- predict.gbm(gbm_mod, test_GSE2034)
+pred_pheno_GSE2034 <- as.list(apply(GSE2034_pre, 1, which.max))
+pred_pheno_GSE2034 = unlist(lapply(pred_pheno_GSE2034, matching, matchMode = 1))
+real_pheno_GSE2034 <- pheno_sample_GSE2034
+pheno_GSE2034_gene = pred_pheno_GSE2034
+confusionMatrix(factor(pred_pheno_GSE2034), factor(real_pheno_GSE2034))
+```
+
+## GSE5327
+```{r}
+DGE_obj_5327 <- DGEList(counts = 2^GeneExp_BRCA_GSE5327 - 1,
+                        group = pheno_sample_GSE5327)
+keep.exprs.5327 <- filterByExpr(DGE_obj_5327)
+DGE_obj_5327 <- calcNormFactors(DGE_obj_5327)
+logCPM_5327 <- cpm(DGE_obj_5327, log=TRUE, prior.count=3)
+test_GSE5327 = as.data.frame(t(logCPM_5327)[,selecG])
+GSE5327_pre <- predict.gbm(gbm_mod, test_GSE5327)
+pred_pheno_GSE5327 <- as.list(apply(GSE5327_pre, 1, which.max))
+pred_pheno_GSE5327 = unlist(lapply(pred_pheno_GSE5327, matching, matchMode = 1))
+real_pheno_GSE5327 <- pheno_sample_GSE5327
+confusionMatrix(factor(pred_pheno_GSE5327), factor(real_pheno_GSE5327))
+```
+
+# DEG DESeq2
+## Feature Selection for DEG DESeq2
+```{r}
+DEG_df_list = list()
+DESeq2G_list = list()
+selecG_DESeq2_list = list()
+top_gene_table_list = list()
+
+# extract top genes and do lasso
+colData <- data.frame(condition = pheno_sample_tcga)
+DGE_obj <- DGEList(counts = round(2^GeneExp_BRCA - 1), group = pheno_sample_tcga)
+logCPM <- cpm(DGE_obj, log=TRUE, prior.count=3)
+dim(logCPM)
+for (i in 1:5) {
+  pheno_sample_tcga_copy = pheno_sample_tcga
+  pheno_sample_tcga_copy = ifelse(pheno_sample_tcga_copy==name_pheno[i],
+                                  name_pheno[i],"other")
+  colData <- data.frame(condition = pheno_sample_tcga)
+  dds <- DESeqDataSetFromMatrix(countData = round(2^GeneExp_BRCA - 1,0),
+                                colData = colData,
+                                design = model.matrix(~pheno_sample_tcga_copy))
+  dds <- DESeq(dds)
+  res <- results(dds)
+  N <- ncol(logCPM)
+  res_adj <- res[which(res$padj < 0.005), ]
+  # output target gene
+  top_gene_table <- res_adj[order(res_adj$padj), ]
+  top_gene_table_list = append(top_gene_table_list, list(top_gene_table))
+  top_genes <- rownames(res_adj)[1:subtype_limit]
+  top_genes = top_genes[!is.na(top_genes)]
+  P <- length(top_genes)
+  
+  DEG_df_eachPheno <- matrix(NA, nrow = N, ncol = P)
+  gene_list <-rownames(logCPM)
+  for(p in 1:P){
+    g <- which(gene_list == top_genes[p])
+    DEG_df_eachPheno[,p] <- logCPM[g,]
+  }
+  DEG_df_eachPheno <- as.data.frame(DEG_df_eachPheno)
+  rownames(DEG_df_eachPheno) <- colnames(logCPM)
+  colnames(DEG_df_eachPheno) <- top_genes
+  DEG_df_eachPheno$phenotype = pheno_sample_tcga
+  DEG_df_list = append(DEG_df_list, list(DEG_df_eachPheno))
+  DESeq2Gene = colnames(DEG_df_eachPheno)[-length(colnames(DEG_df_eachPheno))]
+  DESeq2G_list = append(DESeq2G_list, list(DESeq2Gene))
+  
+  # lasso
+  DEGxy = lassoPreprocessBinary(DEG_df_eachPheno, name_pheno[i])
+  cvLassoDEG = cv.glmnet(DEGxy[[1]], DEGxy[[2]],
+                         alpha = 1, nfolds = 10)
+  plot(cvLassoDEG)
+  DEG_lambda = cvLassoDEG$lambda.min
+  print(DEG_lambda)
+  finalLassoDEG = glmnet(DEGxy[[1]], DEGxy[[2]],
+                         alpha = 1, lambda=DEG_lambda) 
+  result = as.matrix(coef(finalLassoDEG))
+  selecG = names(result[result[,1]!=0,])[-1]
+  selecG_DESeq2_list = append(selecG_DESeq2_list, list(selecG))
+  print(length(selecG))
+}
+DESeq2G = unique(unlist(DESeq2G_list))
+selecG = unique(unlist(selecG_DESeq2_list))
+DEG_lasso = as.data.frame(t(logCPM)[,selecG])
+DEG_lasso$phenotype = pheno_sample_tcga
+```
+
+## GBM
+```{r}
+gbm_mod = gbm(phenotype ~.,
+              data = DEG_lasso,
+              distribution = "multinomial",
+              cv.folds = 10,
+              shrinkage = .01,
+              n.trees = 1000)
+tcga_pred = gbm_mod$cv.fitted
+gbm.perf(gbm_mod)
+pred_pheno_tcga_gene = unlist(lapply(apply(gbm_mod$fit, 1, which.max),
+                                     matching, matchMode = 1))
+```
+
+
+## GSE2034
+```{r}
+DGE_obj_2034 <- DGEList(counts = 2^GeneExp_BRCA_GSE2034 - 1,
+                        group = pheno_sample_GSE2034)
+keep.exprs.2034 <- filterByExpr(DGE_obj_2034)
+DGE_obj_2034 <- calcNormFactors(DGE_obj_2034)
+logCPM_2034 <- cpm(DGE_obj_2034, log=TRUE, prior.count=3)
+test_GSE2034 = as.data.frame(t(logCPM_2034)[,selecG])
+GSE2034_pre <- predict.gbm(gbm_mod, test_GSE2034)
+pred_pheno_GSE2034 <- as.list(apply(GSE2034_pre, 1, which.max))
+pred_pheno_GSE2034 = unlist(lapply(pred_pheno_GSE2034, matching, matchMode = 1))
+real_pheno_GSE2034 <- pheno_sample_GSE2034
+pheno_GSE2034_gene = pred_pheno_GSE2034
+confusionMatrix(factor(pred_pheno_GSE2034), factor(real_pheno_GSE2034))
+```
+
+## GSE5327
+```{r}
+DGE_obj_5327 <- DGEList(counts = 2^GeneExp_BRCA_GSE5327 - 1,
+                        group = pheno_sample_GSE5327)
+keep.exprs.5327 <- filterByExpr(DGE_obj_5327)
+DGE_obj_5327 <- calcNormFactors(DGE_obj_5327)
+logCPM_5327 <- cpm(DGE_obj_5327, log=TRUE, prior.count=3)
+test_GSE5327 = as.data.frame(t(logCPM_5327)[,selecG])
+GSE5327_pre <- predict.gbm(gbm_mod, test_GSE5327)
+pred_pheno_GSE5327 <- as.list(apply(GSE5327_pre, 1, which.max))
+pred_pheno_GSE5327 = unlist(lapply(pred_pheno_GSE5327, matching, matchMode = 1))
+real_pheno_GSE5327 <- pheno_sample_GSE5327
+confusionMatrix(factor(pred_pheno_GSE5327), factor(real_pheno_GSE5327))
+```
+
+# DEP
+## DEP fold change
+```{r}
+Selected_genepairs = paste0(pmin(top1500_Genes[,1],top1500_Genes[,2]),
+                            "_",
+                            pmax(top1500_Genes[,1],top1500_Genes[,2]))
+genePair = unique(names(table(Selected_genepairs)))
+genePairMatrix =  matrix(unlist(strsplit(genePair,"_")), ncol = 2, byrow = TRUE)  
+gene1 = GeneExp_BRCA[as.vector(genePairMatrix[,1]),]
+row.names(gene1) = NULL
+gene2 = GeneExp_BRCA[as.vector(genePairMatrix[,2]),]
+row.names(gene2) = NULL
+pheno_row_foldchange = gene1 - gene2
+row.names(pheno_row_foldchange) = genePair
+DEP_df = as.data.frame(t(pheno_row_foldchange))
+DEP_df$phenotype = pheno_sample_tcga
+```
+
+## Feature Selection for DEP
+```{r}
+peapP_list = list()
+selecP_list = list()
+for (i in c(1:5)){
+  start = 1+(1500*(i-1))
+  end = subtype_limit+(1500*(i-1))
+  peapP = paste(pmin(top1500_Genes[start:end, 1],
+                     top1500_Genes[start:end, 2]),
+                "_",
+                pmax(top1500_Genes[start:end, 1],
+                     top1500_Genes[start:end, 2]),
+                sep="")
+  peapP_list = append(peapP_list, list(peapP))
+  
+  # lasso
+  DEPxy = lassoPreprocessBinary(DEP_df[,c(peapP,"phenotype")],
+                                name_pheno[i])
+  cvLassoDEP = cv.glmnet(DEPxy[[1]], DEPxy[[2]],
+                         alpha = 1, nfolds = 10)
+  plot(cvLassoDEP)
+  DEP_lambda = cvLassoDEP$lambda.min
+  finalLassoDEP = glmnet(DEPxy[[1]], DEPxy[[2]],
+                       alpha = 1, lambda=DEP_lambda) 
+  result = as.matrix(coef(finalLassoDEP))
+  selecP = names(result[result[,1]!=0,])[-1]
+  selecP_list = append(selecP_list, list(selecP))
+}
+sum(peapP_list[[3]] %in%"GLCE_EXT1" )
+selecP = unique(unlist(selecP_list))
+selecP[!selecP %in% colnames(DEP_df)]
+sum(colnames(DEP_df) %in% "GLCE_EXT1.1" )
+DEP_lasso = DEP_df[,selecP]
+DEP_lasso$phenotype = pheno_sample_tcga
+
+```
+
+## GBM
+```{r}
+gbm_mod = gbm(phenotype ~.,
+              data = DEP_lasso,
+              distribution = "multinomial",
+              cv.folds = 10,
+              shrinkage = .01,
+              n.trees = 1000)
+gbm.perf(gbm_mod)
+pred_pheno_tcga_pair = unlist(lapply(apply(gbm_mod$fit, 1, which.max),
+                                matching, matchMode = 1))
+```
+
+## GSE2034
+```{r}
+genePairMatrix_2034 =  matrix(unlist(strsplit(selecP,"_")), ncol = 2, byrow = TRUE)
+gene1 = GeneExp_BRCA_GSE2034[as.vector(genePairMatrix_2034[,1]),]
+row.names(gene1) = NULL
+gene2 = GeneExp_BRCA_GSE2034[as.vector(genePairMatrix_2034[,2]),]
+row.names(gene2) = NULL
+pheno_row_foldchange_GSE2034 = gene1 - gene2
+row.names(pheno_row_foldchange_GSE2034) = selecP
+
+GSE2034_pre <- predict(gbm_mod, as.data.frame(t(pheno_row_foldchange_GSE2034)))
+pred_pheno_GSE2034 <- as.list(apply(GSE2034_pre, 1, which.max))
+pred_pheno_GSE2034 = unlist(lapply(pred_pheno_GSE2034, matching, matchMode = 1))
+real_pheno_GSE2034 <- pheno_sample_GSE2034
+pheno_GSE2034_pair = pred_pheno_GSE2034
+confusionMatrix(factor(pred_pheno_GSE2034), factor(real_pheno_GSE2034))
+```
+## GSE5327
+```{r}
+genePairMatrix_5327 =  matrix(unlist(strsplit(selecP,"_")), ncol = 2, byrow = TRUE)
+gene1 = GeneExp_BRCA_GSE5327[as.vector(genePairMatrix_5327[,1]),]
+row.names(gene1) = NULL
+gene2 = GeneExp_BRCA_GSE5327[as.vector(genePairMatrix_5327[,2]),]
+row.names(gene2) = NULL
+pheno_row_foldchange_GSE5327 = gene1 - gene2
+row.names(pheno_row_foldchange_GSE5327) = selecP
+
+GSE5327_pre <- predict(gbm_mod, as.data.frame(t(pheno_row_foldchange_GSE5327)))
+pred_pheno_GSE5327 <- as.list(apply(GSE5327_pre, 1, which.max))
+pred_pheno_GSE5327 = unlist(lapply(pred_pheno_GSE5327, matching, matchMode = 1))
+real_pheno_GSE5327 <- pheno_sample_GSE5327
+table(pred_pheno_GSE5327)
+table(real_pheno_GSE5327)
+confusionMatrix(factor(pred_pheno_GSE5327), factor(real_pheno_GSE5327))
+```
+
+# Visualization
+```{r}
+nbr_list_lasso = c(lapply(selecG_limma_list, length),
+                        lapply(selecG_edgeR_list, length),
+                        lapply(selecG_DESeq2_list, length),
+                        lapply(selecP_list, length))
+nbr_list_de = c(lapply(limmaG_list, length),
+                     lapply(edgeRG_list, length),
+                     lapply(DESeq2G_list, length),
+                     lapply(peapP_list, length))
+DEG_size = data.frame(Features = unlist(append(nbr_list_lasso, nbr_list_de)),
+                      Phenotypes = rep(name_pheno,4),
+                      model = c(rep("lasso", 20),
+                                rep("limma", 5),
+                                rep("edgeR", 5),
+                                rep("DESeq2", 5),
+                                rep("PEAP",5)),
+                      method = rep(c(rep("LIMMA",5),
+                                     rep("edgeR",5),
+                                     rep("DESeq2",5),
+                                     rep("PEAP",5)),2))
+DEG_size
+DEG_size %>%
+  ggplot(aes(x=Phenotypes,y=Features))+
+  geom_bar(aes(group=model,fill=model),
+           position = "dodge",stat = "identity")+
+  geom_text(aes(label = Features, group = model),
+            position = position_dodge(0.8),
+            vjust = -0.3, size = 3)+
+  ggtitle("Feature Sizes after each Layer")+
+  theme(plot.title = element_text(hjust = 0.5))+
+  facet_wrap(~method)
+```
+
+
+```{r}
+save.image(paste0("DEG_crossPred_",subtype_limit,"perType.RDa"))
+```
+
