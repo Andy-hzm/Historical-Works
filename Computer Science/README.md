@@ -48,7 +48,7 @@ Count the number of inversions of an array
   
 Finds the biggest symmetric subtree in a binary tree.
 ## 9. Wandering
-**Key Techniques:** *Dijkstra*  
+**Key Techniques:** *Dijkstra Algorithm*  
   
 Finds the second shortest path from node 1 to node n in a bidirectional graph.  
 
