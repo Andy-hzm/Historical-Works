@@ -24,16 +24,6 @@ This game generates a disordered number table in dimensions up to 10x10. The min
 A special snake game. 
 
 The user will use 4 arrow keys to control the snake’s movement, in order to consume all the food items generated randomly on the board (represented by numbers from 1 to 9) and avoid head-on collision with the monster (represented by a purple square). When the snake eats all the “food” on the board and is not caught by the monster, the user wins the game. Oppositely, when the monster catches the snake, the user loses the game. Also, as soon as the user clicks anywhere on the screen to start the game, the status area on the board will show the current gaming time and the snake’smotion, including “Up”, “Right”, “Down”, “Left”, and “Paused” (the user can use a space bar to pause or un-pause the snake’s movement). The area also counts the contact time of the monster and the snake’s body.
-### Sample Output
-#### Sample Output
-
-##### Welcoming Page:
-
-<img src="https://github.com/Master-Pyda/Exercises/assets/96870573/ed453b12-8c23-419f-848b-15884294f540" width="500" alt="image"/>
-
-##### After the user clicks the screen:
-
-<img src="https://github.com/Master-Pyda/Exercises/assets/96870573/558b41e1-6dca-4d39-b75f-29a59813241d" width="500" alt="image"/>
 
 
 
