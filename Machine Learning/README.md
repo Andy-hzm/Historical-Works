@@ -9,7 +9,7 @@ Implement traditional differential expressed gene selection methods and the inno
   
 Modify source code of KNN Collaborative Filtering package to do course-grained recommendation preprocessing.
 
-## 3. Kmeans and GMM implementation
+## 3. Kmeans and GMM
 **Key Techniques:** *K-means, GMM, Clustering, Python*  
   
 Implement 2 clustering algorithms: K-means and Gaussian Mixture Model.
